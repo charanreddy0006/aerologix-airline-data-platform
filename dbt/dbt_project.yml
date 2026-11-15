@@ -1,0 +1,11 @@
+name: aerologix
+version: 1.0.0
+config-version: 2
+profile: aerologix
+model-paths: [models]
+snapshot-paths: [snapshots]
+test-paths: [tests]
+models:
+  aerologix:
+    staging: {+materialized: view, +schema: dbt_stg}
+    marts: {+materialized: table, +schema: dbt_mart}

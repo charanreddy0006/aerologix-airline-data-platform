@@ -1,0 +1,17 @@
+USE AeroLogix;
+GO
+CREATE OR ALTER VIEW ops.v_FlightOperations AS
+SELECT f.FlightId,f.FlightNumber,f.FlightDate,o.AirportCode Origin,d.AirportCode Destination,a.AircraftType,f.ScheduledDeparture,f.ActualDeparture,f.FlightStatus,f.DepartureDelayMinutes,r.DistanceMiles,COUNT(b.BookingId) BookingCount,SUM(CASE WHEN b.BookingStatus<>'CANCELLED' THEN b.BaseFare ELSE 0 END) BookedFare
+FROM ops.Flight f JOIN ref.Route r ON r.RouteId=f.RouteId JOIN ref.Airport o ON o.AirportCode=r.OriginAirportCode JOIN ref.Airport d ON d.AirportCode=r.DestinationAirportCode JOIN ref.Aircraft a ON a.AircraftId=f.AircraftId LEFT JOIN ops.Booking b ON b.FlightId=f.FlightId GROUP BY f.FlightId,f.FlightNumber,f.FlightDate,o.AirportCode,d.AirportCode,a.AircraftType,f.ScheduledDeparture,f.ActualDeparture,f.FlightStatus,f.DepartureDelayMinutes,r.DistanceMiles;
+GO
+CREATE OR ALTER PROCEDURE etl.usp_ApplyOperationalLoad AS
+BEGIN SET NOCOUNT ON; SET XACT_ABORT ON; BEGIN TRAN;
+ MERGE ref.Airport t USING stg.AirportLoad s ON t.AirportCode=s.AirportCode WHEN MATCHED THEN UPDATE SET AirportName=s.AirportName,City=s.City,CountryCode=s.CountryCode,TimeZoneName=s.TimeZoneName WHEN NOT MATCHED THEN INSERT(AirportCode,AirportName,City,CountryCode,TimeZoneName) VALUES(s.AirportCode,s.AirportName,s.City,s.CountryCode,s.TimeZoneName);
+ MERGE ref.Aircraft t USING stg.AircraftLoad s ON t.AircraftId=s.AircraftId WHEN MATCHED THEN UPDATE SET AircraftType=s.AircraftType,SeatCapacity=s.SeatCapacity,ManufactureYear=s.ManufactureYear,AircraftStatus=s.AircraftStatus WHEN NOT MATCHED THEN INSERT(AircraftId,AircraftType,SeatCapacity,ManufactureYear,AircraftStatus) VALUES(s.AircraftId,s.AircraftType,s.SeatCapacity,s.ManufactureYear,s.AircraftStatus);
+ MERGE ref.Route t USING stg.RouteLoad s ON t.OriginAirportCode=s.OriginAirportCode AND t.DestinationAirportCode=s.DestinationAirportCode WHEN MATCHED THEN UPDATE SET DistanceMiles=s.DistanceMiles WHEN NOT MATCHED THEN INSERT(OriginAirportCode,DestinationAirportCode,DistanceMiles) VALUES(s.OriginAirportCode,s.DestinationAirportCode,s.DistanceMiles);
+ INSERT ops.Passenger(PassengerId) SELECT DISTINCT s.PassengerId FROM stg.BookingLoad s WHERE NOT EXISTS(SELECT 1 FROM ops.Passenger p WHERE p.PassengerId=s.PassengerId);
+ MERGE ops.Flight t USING(SELECT s.*,r.RouteId FROM stg.FlightLoad s JOIN ref.Route r ON r.OriginAirportCode=s.OriginAirportCode AND r.DestinationAirportCode=s.DestinationAirportCode) s ON t.FlightId=s.FlightId WHEN MATCHED THEN UPDATE SET FlightNumber=s.FlightNumber,FlightDate=s.FlightDate,RouteId=s.RouteId,AircraftId=s.AircraftId,ScheduledDeparture=s.ScheduledDeparture,ActualDeparture=s.ActualDeparture,FlightStatus=s.FlightStatus,DepartureDelayMinutes=s.DepartureDelayMinutes WHEN NOT MATCHED THEN INSERT(FlightId,FlightNumber,FlightDate,RouteId,AircraftId,ScheduledDeparture,ActualDeparture,FlightStatus,DepartureDelayMinutes) VALUES(s.FlightId,s.FlightNumber,s.FlightDate,s.RouteId,s.AircraftId,s.ScheduledDeparture,s.ActualDeparture,s.FlightStatus,s.DepartureDelayMinutes);
+ MERGE ops.Booking t USING stg.BookingLoad s ON t.BookingId=s.BookingId WHEN MATCHED THEN UPDATE SET PassengerId=s.PassengerId,FlightId=s.FlightId,SeatNumber=s.SeatNumber,BaseFare=s.BaseFare,CabinClass=s.CabinClass,BookingStatus=s.BookingStatus WHEN NOT MATCHED THEN INSERT(BookingId,PassengerId,FlightId,BookingReference,SeatNumber,BaseFare,CabinClass,BookingStatus) VALUES(s.BookingId,s.PassengerId,s.FlightId,s.BookingReference,s.SeatNumber,s.BaseFare,s.CabinClass,s.BookingStatus);
+ COMMIT;
+END;
+GO

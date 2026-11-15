@@ -1,0 +1,14 @@
+version: 2
+models:
+  - name: fct_flight_summary
+    columns:
+      - name: flight_date
+        tests: [not_null]
+      - name: flight_count
+        tests: [not_null]
+  - name: fct_booking_revenue
+    columns:
+      - name: flight_date
+        tests: [not_null]
+      - name: cabin_class
+        tests: [not_null]

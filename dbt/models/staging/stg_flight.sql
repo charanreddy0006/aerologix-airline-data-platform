@@ -1,0 +1,1 @@
+select FlightId as flight_id, FlightNumber as flight_number, FlightDate as flight_date, RouteId as route_id, AircraftId as aircraft_id, FlightStatus as flight_status, DepartureDelayMinutes as departure_delay_minutes from {{ source('aero','Flight') }}

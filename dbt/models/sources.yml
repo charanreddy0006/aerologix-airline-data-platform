@@ -1,0 +1,35 @@
+version: 2
+sources:
+  - name: aero
+    database: AeroLogix
+    schema: ops
+    tables:
+      - name: Flight
+        columns:
+          - name: FlightId
+            tests: [not_null, unique]
+          - name: FlightStatus
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['SCHEDULED', 'COMPLETED', 'CANCELLED', 'DIVERTED']
+      - name: Booking
+        columns:
+          - name: BookingId
+            tests: [not_null, unique]
+          - name: FlightId
+            tests:
+              - relationships:
+                  arguments:
+                    to: source('aero', 'Flight')
+                    field: FlightId
+          - name: BookingStatus
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['BOOKED', 'TICKETED', 'FLOWN', 'CANCELLED']
+  - name: reference
+    database: AeroLogix
+    schema: ref
+    tables:
+      - name: Airport

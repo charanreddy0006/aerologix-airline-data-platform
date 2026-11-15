@@ -1,0 +1,11 @@
+origin_airport_code,destination_airport_code,distance_miles
+JFK,LAX,2475
+LAX,JFK,2475
+JFK,ORD,740
+ORD,DFW,802
+SEA,SFO,679
+ATL,BOS,946
+SFO,LAX,337
+DFW,JFK,1391
+BOS,ORD,867
+LAX,SEA,954

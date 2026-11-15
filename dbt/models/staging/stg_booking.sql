@@ -1,0 +1,1 @@
+select BookingId as booking_id, FlightId as flight_id, PassengerId as passenger_id, CabinClass as cabin_class, BookingStatus as booking_status, BaseFare as base_fare_usd from {{ source('aero','Booking') }}
