@@ -6,9 +6,18 @@ models:
         tests: [not_null]
       - name: flight_count
         tests: [not_null]
+      - name: flight_status
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['SCHEDULED', 'COMPLETED', 'CANCELLED', 'DIVERTED']
   - name: fct_booking_revenue
     columns:
       - name: flight_date
         tests: [not_null]
       - name: cabin_class
-        tests: [not_null]
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['ECONOMY', 'PREMIUM', 'BUSINESS', 'FIRST']

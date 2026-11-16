@@ -8,6 +8,12 @@ sources:
         columns:
           - name: FlightId
             tests: [not_null, unique]
+          - name: FlightDate
+            tests: [not_null]
+          - name: RouteId
+            tests: [not_null]
+          - name: AircraftId
+            tests: [not_null]
           - name: FlightStatus
             tests:
               - accepted_values:
@@ -28,8 +34,13 @@ sources:
               - accepted_values:
                   arguments:
                     values: ['BOOKED', 'TICKETED', 'FLOWN', 'CANCELLED']
+          - name: BaseFare
+            tests: [not_null]
   - name: reference
     database: AeroLogix
     schema: ref
     tables:
       - name: Airport
+        columns:
+          - name: AirportCode
+            tests: [not_null, unique]
