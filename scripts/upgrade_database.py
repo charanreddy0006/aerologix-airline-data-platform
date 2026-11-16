@@ -63,6 +63,12 @@ def main() -> None:
             cursor.execute("INSERT etl.SchemaMigration(MigrationVersion) VALUES(?)", version)
             connection.commit()
             print(f"Applied migration {version}")
+        # This repeatable module script is also the upgrade path for existing
+        # databases, so refresh procedure/view SET options even when the
+        # baseline migration has already been recorded.
+        subprocess.run(["sqlcmd", "-C", "-S", server, "-d", "AeroLogix", "-U", user,
+                        "-b", "-i", str(ROOT / "sql" / "warehouse" / "02_load.sql")],
+                       check=True, cwd=ROOT, env=environment)
     finally:
         try:
             connection.cursor().execute("EXEC sys.sp_releaseapplock @Resource=N'AeroLogix.SchemaMigrations',@LockOwner='Session'")

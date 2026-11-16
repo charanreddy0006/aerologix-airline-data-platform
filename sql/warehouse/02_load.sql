@@ -1,5 +1,8 @@
 USE AeroLogix;
 GO
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
 CREATE OR ALTER PROCEDURE etl.usp_LoadWarehouse AS
 BEGIN
  SET NOCOUNT ON; SET XACT_ABORT ON; BEGIN TRAN;
@@ -40,7 +43,13 @@ BEGIN
  COMMIT;
 END;
 GO
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
 CREATE OR ALTER VIEW mart.v_RoutePerformance AS SELECT d.FullDate,o.AirportCode Origin,dst.AirportCode Destination,COUNT_BIG(*) ScheduledFlights,SUM(f.CompletedFlights) CompletedFlights,SUM(f.CancelledFlights) CancelledFlights,AVG(CASE WHEN f.FlightStatus='COMPLETED' THEN CAST(f.DepartureDelayMinutes AS decimal(10,2)) END) AvgDepartureDelayMinutes,SUM(f.DistanceMiles) MilesFlown FROM dw.FactFlight f JOIN dw.DimDate d ON d.DateKey=f.FlightDateKey JOIN dw.DimAirport o ON o.AirportKey=f.OriginAirportKey JOIN dw.DimAirport dst ON dst.AirportKey=f.DestinationAirportKey GROUP BY d.FullDate,o.AirportCode,dst.AirportCode;
+GO
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
 GO
 CREATE OR ALTER VIEW mart.v_RevenueByCabin AS SELECT d.CalendarYear,d.MonthNumber,b.CabinClass,COUNT_BIG(*) BookingCount,SUM(CASE WHEN b.BookingStatus<>'CANCELLED' THEN b.BaseFare ELSE 0 END) GrossBookedRevenue,SUM(CASE WHEN b.BookingStatus='FLOWN' THEN b.BaseFare ELSE 0 END) FlownRevenue FROM dw.FactBooking b JOIN dw.DimDate d ON d.DateKey=b.FlightDateKey GROUP BY d.CalendarYear,d.MonthNumber,b.CabinClass;
 GO

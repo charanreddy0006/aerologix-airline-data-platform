@@ -13,7 +13,18 @@ def main() -> None:
     logging.basicConfig(level=os.getenv('LOG_LEVEL', 'INFO'))
     connection = pyodbc.connect(connection_string())
     try:
-        connection.cursor().execute('EXEC etl.usp_LoadWarehouse')
+        cursor = connection.cursor()
+        for option in (
+            'SET ANSI_NULLS ON',
+            'SET ANSI_PADDING ON',
+            'SET ANSI_WARNINGS ON',
+            'SET ARITHABORT ON',
+            'SET CONCAT_NULL_YIELDS_NULL ON',
+            'SET QUOTED_IDENTIFIER ON',
+            'SET NUMERIC_ROUNDABORT OFF',
+        ):
+            cursor.execute(option)
+        cursor.execute('EXEC etl.usp_LoadWarehouse')
         connection.commit()
         logging.info('Warehouse load committed')
     except Exception:
