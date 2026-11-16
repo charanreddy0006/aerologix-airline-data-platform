@@ -1,0 +1,104 @@
+name: AeroLogix offline validation
+
+on:
+  push:
+    branches: [main, "phase-3/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SQLSERVER_PASSWORD: CI-Only-Parse-Placeholder-123!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install offline validation tools
+        run: python -m pip install -e ".[test]" PyYAML==6.0.2 "dbt-sqlserver==1.12.2"
+      - name: Compile Python
+        run: python -m compileall -q src tests scripts airflow/dags
+      - name: Run pytest
+        run: python -m pytest -q
+      - name: Run unittest
+        run: python -m unittest discover -s tests -v
+      - name: Validate source CSVs
+        run: python -c "from pathlib import Path; import sys; sys.path.insert(0, 'src'); from aerologix.load import FEEDS, read_feed; from pathlib import Path; root=Path('data/raw'); counts={f.filename:len(read_feed(root,f)) for f in FEEDS}; print(counts); assert counts == {'airports.csv':8,'aircraft.csv':6,'routes.csv':10,'flights.csv':120,'bookings.csv':1200}"
+      - name: Validate YAML
+        run: python -c "import yaml; from pathlib import Path; paths=list(Path('.').rglob('*.yml'))+list(Path('.').rglob('*.yaml')); [yaml.safe_load(p.read_text(encoding='utf-8')) for p in paths if '.git' not in p.parts and 'dbt_packages' not in p.parts]; print(f'Validated {len(paths)} YAML files')"
+      - name: Validate Docker Compose
+        env:
+          SA_PASSWORD: CI-Only-Parse-Placeholder-123!
+        run: docker compose config --quiet
+      - name: Parse dbt project
+        run: |
+          mkdir -p "$HOME/.dbt"
+          cp dbt/profiles.yml.example "$HOME/.dbt/profiles.yml"
+          dbt parse --project-dir dbt --profiles-dir "$HOME/.dbt" --no-partial-parse
+      - name: Validate local documentation links
+        run: python scripts/validate_docs.py
+
+  sqlserver-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SA_PASSWORD: CI-Only-Parse-Placeholder-123!
+      SQLSERVER_PASSWORD: CI-Only-Parse-Placeholder-123!
+      SQLCMDPASSWORD: CI-Only-Parse-Placeholder-123!
+      SQLSERVER_HOST: localhost
+      SQLSERVER_PORT: "1433"
+      SQLSERVER_USER: sa
+      SQLSERVER_DATABASE: AeroLogix
+      SQLSERVER_DRIVER: ODBC Driver 18 for SQL Server
+      AEROLOGIX_TEST_DSN: "DRIVER={ODBC Driver 18 for SQL Server};SERVER=localhost,1433;DATABASE=AeroLogix;UID=sa;PWD=CI-Only-Parse-Placeholder-123!;TrustServerCertificate=yes"
+      AEROLOGIX_TEST_WRITES: "1"
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: CI-Only-Parse-Placeholder-123!
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $MSSQL_SA_PASSWORD -Q 'SELECT 1' || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 30 --health-start-period 30s
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Microsoft ODBC Driver 18 and sqlcmd
+        run: |
+          curl -fsSLo /tmp/packages-microsoft-prod.deb https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb
+          sudo dpkg -i /tmp/packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 mssql-tools18 unixodbc-dev
+          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
+      - name: Install AeroLogix test dependencies
+        run: python -m pip install -e ".[test]"
+      - name: Initialize and rerun migrations
+        run: |
+          python scripts/check_env.py
+          python scripts/upgrade_database.py
+          python scripts/upgrade_database.py
+      - name: Load source and warehouse twice
+        run: |
+          python -m aerologix.load --data data/raw
+          python -m aerologix.load --data data/raw
+          python scripts/load_warehouse.py
+          python scripts/load_warehouse.py
+      - name: Execute SQL data quality report
+        run: sqlcmd -C -S localhost,1433 -U sa -b -i sql/analytics/data_quality.sql
+      - name: Run isolated SQL Server integration tests
+        run: python -m pytest -q tests/test_sqlserver_integration.py

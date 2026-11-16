@@ -146,6 +146,8 @@ AeroLogix-Airline-Operations-Flight-Intelligence/
 
 *The tree highlights the main project components; consult the repository for the complete file structure.*
 
+Phase 3 reliability assets include `.github/workflows/ci.yml`, numbered SQL migrations, quarantine export and environment-check scripts, the dbt singular tests, and the Airflow deployment guide.
+
 ---
 
 ## 📊 Synthetic Dataset
@@ -245,8 +247,12 @@ Key capabilities:
 - Rollback on failure.
 - Structured logging.
 - Database connection cleanup.
+- Per-run UUIDs and SQL Server execution audit records.
+- Per-feed accepted/rejected counts and estimated inserted/updated counts.
+- JSONL quarantine files for invalid records while valid rows continue.
+- Idempotent retry behavior for source-key upserts.
 
-All five source feeds are validated before the database transaction begins.
+All five feeds are schema-checked before database writes. Invalid data rows are retained with rejection reasons under `data/quarantine/`; valid records continue. Schema/header errors stop the run because field mapping cannot be trusted. See [Pipeline Guide](docs/PIPELINE_GUIDE.md) for recovery and the limits on inserted/updated count semantics.
 
 ---
 
@@ -262,6 +268,7 @@ Implemented components include:
 - Airport snapshots.
 - Generic data tests.
 - Source and model documentation.
+- Business-grain singular tests for flight summary and booking revenue marts.
 
 The project includes two staging views, two marts and one airport snapshot.
 
@@ -287,6 +294,7 @@ The DAG includes:
 - SQL Server connection configuration.
 
 Airflow is deployed separately from the SQL Server Docker Compose service.
+See [Airflow deployment notes](airflow/README.md) for Python constraints, environment setup and the SQL Server connection.
 
 ---
 
@@ -382,12 +390,14 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[test]"
 ```
 
-### 6. Initialize the SQL Server Databases
+### 6. Validate settings and initialize/upgrade the SQL Server database
 
 From the project root:
 
 ```bash
-python scripts/apply_sql.py
+python scripts/check_env.py
+
+python scripts/upgrade_database.py
 ```
 
 ### 7. Generate and Load Data
@@ -462,13 +472,13 @@ python -m pytest -q
 python -m unittest discover -s tests -v
 ```
 
-The SQL Server integration tests require a configured test database and `AEROLOGIX_TEST_DSN`.
+The read-only SQL Server integration test requires `AEROLOGIX_TEST_DSN` pointing to a separately provisioned disposable SQL Server instance. Never point integration tests at production or the original project database. Live database and Airflow execution are not performed by offline CI.
 
 ---
 
 ## 📋 Validation Status
 
-**Final review date:** November 15, 2026
+**Prior validation date:** November 15, 2026. Phase 3 implementation results are recorded in `docs/PHASE_3_IMPLEMENTATION_REPORT.md`.
 
 | Validation | Result |
 |---|---|
@@ -486,6 +496,7 @@ The SQL Server integration tests require a configured test database and `AEROLOG
 | SQL data quality execution | BLOCKED |
 | dbt database operations | BLOCKED |
 | Airflow DAG execution | BLOCKED |
+| Phase 3 CI workflow | See Phase 3 report |
 
 ### Validation Notes
 
@@ -511,10 +522,11 @@ The complete validation evidence is documented in:
 - Warehouse loading and SQL data quality execution require a running SQL Server instance.
 - dbt compile, test and run require database connectivity.
 - Airflow is configured as a separate deployment and has not undergone live execution validation.
-- SQL initialization uses create-if-missing logic rather than a versioned migration framework.
+- The original create-if-missing scripts remain the baseline; numbered additive migrations now track later schema changes.
+- Migrations are forward-only; upgrades require a database/volume backup and reviewed compensating migration for rollback.
 - Airport source data does not provide authoritative historical effective dates.
 - No source feeds currently provide crew, airline ownership or maintenance event records.
-- Invalid CSV records are rejected, but a durable quarantine and replay system is not implemented.
+- Quarantine is local JSONL, not a centralized retention-managed SQL store. Review, correction and export are operator steps.
 
 ---
 
@@ -522,14 +534,11 @@ The complete validation evidence is documented in:
 
 Potential future improvements include:
 
-- Versioned database migrations.
-- Durable data quarantine and replay.
+- Centralized, retention-managed quarantine beyond the current local JSONL workflow.
 - Effective-dated source records.
 - Additional airline and crew datasets.
 - Expanded operational analytics.
-- Automated CI/CD validation.
 - Fully provisioned Airflow deployment.
-- End-to-end integration testing with SQL Server.
 
 These are future opportunities rather than claims about existing functionality.
 
@@ -551,6 +560,7 @@ Detailed technical documentation is available in the `docs/` directory.
 | PHASE_2_VALIDATION_REPORT.md | Integration validation evidence |
 | FINAL_PROJECT_REPORT.md | Final project summary |
 | PROJECT_CLOSURE_CHECKLIST.md | Project completion checklist |
+| PHASE_3_IMPLEMENTATION_REPORT.md | Phase 3 changes, checks and remaining limitations |
 
 ---
 

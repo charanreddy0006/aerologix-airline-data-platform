@@ -48,10 +48,14 @@ class FakeCursor:
         self.statements = []
         self.fail = fail
 
-    def execute(self, statement):
-        self.statements.append(statement)
+    def execute(self, statement, *parameters):
+        self.statements.append(statement if not parameters else (statement, parameters))
         if self.fail and statement.startswith('EXEC '):
             raise RuntimeError('simulated apply failure')
+        return self
+
+    def fetchone(self):
+        return (0,)
 
     def executemany(self, statement, rows):
         self.statements.append((statement, list(rows)))
@@ -93,7 +97,8 @@ def test_loader_rolls_back_and_closes_after_failure(monkeypatch):
     connection = FakeConnection(fail=True)
     with pytest.raises(RuntimeError, match='simulated'):
         loader.load(ROOT / 'data' / 'raw', connection_factory=lambda _: connection)
-    assert connection.rolled_back and connection.closed and not connection.committed
+    # The RUNNING audit row is committed before the data transaction so failures remain visible.
+    assert connection.rolled_back and connection.closed and connection.committed
 
 
 def test_generator_options_and_invalid_capacity(tmp_path):
@@ -104,3 +109,41 @@ def test_generator_options_and_invalid_capacity(tmp_path):
     assert flights[0]['flight_date'] == '2026-02-01'
     with pytest.raises(ValueError, match='capacity'):
         generate(tmp_path, 1, 181)
+
+
+def test_resilient_reader_preserves_invalid_records(tmp_path):
+    feed = next(x for x in loader.FEEDS if x.filename == 'airports.csv')
+    _write_feed(tmp_path, feed.filename, feed.headers, [
+        dict(zip(feed.headers, ('JFK', 'John F Kennedy', 'New York', 'US', 'America/New_York'))),
+        dict(zip(feed.headers, ('BAD', '', 'City', 'US', 'Etc/UTC'))),
+    ])
+    accepted, rejected = loader.read_feed_resilient(tmp_path, feed)
+    assert len(accepted) == 1
+    assert rejected[0]['row_number'] == 3
+    assert rejected[0]['record']['airport_code'] == 'BAD'
+    assert 'required value' in rejected[0]['reason']
+
+
+def test_loader_quarantines_invalid_rows_and_loads_valid_rows(tmp_path, monkeypatch):
+    import json
+    import shutil
+    source = tmp_path / 'source'
+    source.mkdir()
+    for feed in loader.FEEDS:
+        shutil.copy(ROOT / 'data' / 'raw' / feed.filename, source / feed.filename)
+    airports = source / 'airports.csv'
+    with airports.open(encoding='utf-8', newline='') as handle:
+        rows = list(csv.DictReader(handle))
+    rows[0]['airport_name'] = ''
+    _write_feed(source, 'airports.csv', loader.FEEDS[0].headers, rows)
+    monkeypatch.setenv('SQLSERVER_PASSWORD', 'test-only')
+    connection = FakeConnection()
+    result = loader.load(source, connection_factory=lambda _: connection,
+                        quarantine_dir=tmp_path / 'quarantine')
+    assert result['airports.csv'] == 7
+    files = list((tmp_path / 'quarantine').glob('*.jsonl'))
+    assert len(files) == 1
+    rejected = json.loads(files[0].read_text(encoding='utf-8').splitlines()[0])
+    assert rejected['record']['airport_code'] == 'JFK'
+    assert 'required value' in rejected['reason']
+    assert connection.committed and not connection.rolled_back

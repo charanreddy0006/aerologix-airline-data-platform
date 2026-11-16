@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aerologix-airline-intelligence"
 version = "1.0.0"
 requires-python = ">=3.11"
-dependencies = ["pyodbc==5.2.0", "python-dotenv==1.0.1"]
+dependencies = ["pyodbc==5.2.0", "python-dotenv==1.2.4"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<9"]

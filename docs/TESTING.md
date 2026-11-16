@@ -9,7 +9,9 @@ python -m pytest -q
 python -m unittest discover -s tests -v
 ```
 
-The SQL Server integration suite is skipped unless `AEROLOGIX_TEST_DSN` is set and `pyodbc` is installed. It expects a seeded database with the fixture counts represented in `tests/test_sqlserver_integration.py`.
+The read-only SQL Server integration suite is skipped unless `AEROLOGIX_TEST_DSN` is set and `pyodbc` is installed. Point it only at a disposable, separately provisioned SQL Server instance/database seeded with the fixture counts. Never point it at a production or original project instance. The repository does not start or seed this isolated integration server automatically; that validation remains infrastructure-dependent.
+
+The GitHub Actions workflow runs offline checks and does not require credentials. SQL Server and Airflow runtime validation are intentionally separate and are not inferred from CI green status.
 
 ## Infrastructure checks
 

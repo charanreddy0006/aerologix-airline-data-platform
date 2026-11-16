@@ -21,10 +21,12 @@ def main() -> None:
     if not password:
         raise RuntimeError('Set SQLSERVER_PASSWORD in .env or the environment before applying scripts')
     server = f"{os.getenv('SQLSERVER_HOST', 'localhost')},{os.getenv('SQLSERVER_PORT', '1433')}"
+    environment = os.environ.copy()
+    environment['SQLCMDPASSWORD'] = password
     for script in SCRIPTS:
         print(f'Applying {script.relative_to(ROOT)}')
         subprocess.run(['sqlcmd', '-C', '-S', server, '-U', os.getenv('SQLSERVER_USER', 'sa'),
-                        '-P', password, '-b', '-i', str(script)], check=True, cwd=ROOT)
+                        '-b', '-i', str(script)], check=True, cwd=ROOT, env=environment)
 
 
 if __name__ == '__main__':

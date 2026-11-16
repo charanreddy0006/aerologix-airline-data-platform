@@ -1,5 +1,9 @@
 # AeroLogix Final Project Report
 
+This report archives the 2026-11-15 Phase 2 review. Its status and limitations
+are historical; the current implementation and validation evidence are in
+[PHASE_3_IMPLEMENTATION_REPORT.md](PHASE_3_IMPLEMENTATION_REPORT.md).
+
 **Review date:** 2026-11-15  
 **Final status:** **READY WITH INFRASTRUCTURE LIMITATIONS**
 

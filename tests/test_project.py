@@ -8,8 +8,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+sys.path.insert(0, str(ROOT / 'scripts'))
 
 from aerologix.generate import generate
+from check_env import validate_environment
 
 
 def read_csv(name: str) -> list[dict[str, str]]:
@@ -71,6 +73,18 @@ class ProjectTests(unittest.TestCase):
         for asset in assets:
             with self.subTest(asset=asset):
                 self.assertTrue((ROOT / asset).is_file())
+
+    def test_phase_three_assets_are_present(self) -> None:
+        for asset in ('sql/migrations/001_pipeline_audit.sql', 'scripts/upgrade_database.py',
+                      'scripts/export_quarantine.py', '.github/workflows/ci.yml',
+                      'dbt/tests/assert_flight_summary_grain.sql'):
+            with self.subTest(asset=asset):
+                self.assertTrue((ROOT / asset).is_file())
+
+    def test_environment_validation_requires_matching_compose_sa_passwords(self) -> None:
+        with self.assertRaisesRegex(ValueError, 'must match'):
+            validate_environment({'SA_PASSWORD': 'one', 'SQLSERVER_PASSWORD': 'two'})
+        validate_environment({'SA_PASSWORD': 'same', 'SQLSERVER_PASSWORD': 'same', 'SQLSERVER_PORT': '1433'})
 
 
 if __name__ == '__main__':
